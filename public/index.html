@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>TEC Check-in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<!-- Display face: Fraunces stands in for PP Editorial New (paid). Swap via --font-display. -->
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    /* ---- TEC brand tokens (from the Ministry Style Guide) ---- */
+    --ink:        #0a0a0a;   /* near-black field the brand lives on */
+    --ink-soft:   #141414;
+    --gold:       #D4AF37;   /* primary gold */
+    --gold-soft:  #F2D578;   /* soft gold */
+    --gold-bright:#FFC300;   /* bright gold */
+    --fire:       #FF1313;   /* flame red */
+    --white:      #FFFFFF;
+    --muted:      #8a8378;   /* dimmed gold-grey for captions */
+
+    --font-display: "Fraunces", "PP Editorial New", Georgia, serif;
+    --font-body: "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: var(--font-body);
+    background:
+      radial-gradient(120% 80% at 50% 0%, #1a1206 0%, var(--ink) 55%) fixed,
+      var(--ink);
+    color: var(--white);
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(20px, 6vw, 48px);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 420px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 26px;
+  }
+
+  /* ---- Flame mark (hero) ---- */
+  .mark {
+    width: clamp(96px, 30vw, 132px);
+    height: auto;
+    filter: drop-shadow(0 6px 30px rgba(212, 175, 55, 0.25));
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .mark { animation: rise 900ms cubic-bezier(.2,.7,.2,1) both; }
+    .flame-inner { transform-origin: center bottom; animation: flicker 3.2s ease-in-out infinite; }
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px) scale(.96); } to { opacity: 1; transform: none; } }
+  @keyframes flicker {
+    0%, 100% { transform: scale(1) translateY(0); }
+    50%      { transform: scale(1.04) translateY(-1px); }
+  }
+
+  .eyebrow {
+    font-family: var(--font-body);
+    font-size: 12px;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--gold);
+    font-weight: 600;
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: clamp(30px, 9vw, 42px);
+    line-height: 1.02;
+    letter-spacing: -0.01em;
+  }
+  h1 .meeting {
+    display: block;
+    font-size: 0.46em;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--gold-soft);
+    margin-top: 12px;
+  }
+
+  .status {
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--muted);
+    min-height: 22px;
+    max-width: 320px;
+  }
+  .status strong { color: var(--white); font-weight: 600; }
+
+  /* ---- Primary action ---- */
+  .action {
+    width: 100%;
+    border: none;
+    border-radius: 18px;
+    padding: 20px 24px;
+    font-family: var(--font-body);
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    color: var(--ink);
+    background: linear-gradient(145deg, var(--gold-bright), var(--gold) 70%, #b8902a);
+    box-shadow: 0 10px 28px rgba(212, 175, 55, 0.28), inset 0 1px 0 rgba(255,255,255,0.4);
+    transition: transform .12s ease, box-shadow .2s ease, opacity .2s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .action:active { transform: scale(0.98); }
+  .action:focus-visible { outline: 3px solid var(--gold-soft); outline-offset: 3px; }
+  .action[disabled] { opacity: 0.5; cursor: default; }
+
+  /* check-out variant: quiet, fire-edged */
+  .action.checkout {
+    background: var(--ink-soft);
+    color: var(--white);
+    border: 1.5px solid var(--fire);
+    box-shadow: 0 8px 24px rgba(255, 19, 19, 0.12);
+  }
+
+  .telegram-login { min-height: 46px; display: flex; justify-content: center; }
+
+  .hint {
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.5;
+    max-width: 300px;
+  }
+  .hint a { color: var(--gold); text-decoration: none; border-bottom: 1px solid rgba(212,175,55,.4); }
+
+  /* result banner */
+  .banner {
+    width: 100%;
+    border-radius: 14px;
+    padding: 16px 18px;
+    font-size: 15px;
+    line-height: 1.45;
+    display: none;
+  }
+  .banner.show { display: block; animation: rise 360ms ease both; }
+  .banner.in  { background: rgba(212,175,55,.12); border: 1px solid rgba(212,175,55,.5); color: var(--gold-soft); }
+  .banner.out { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.18); color: var(--white); }
+  .banner.err { background: rgba(255,19,19,.10); border: 1px solid rgba(255,19,19,.5); color: #ff8b8b; }
+
+  .spinner {
+    width: 18px; height: 18px; border-radius: 50%;
+    border: 2.5px solid rgba(10,10,10,.25); border-top-color: var(--ink);
+    display: inline-block; vertical-align: -3px; margin-right: 8px;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  footer {
+    margin-top: 8px;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #4a4640;
+  }
+</style>
+</head>
+<body>
+  <main class="card">
+    <!-- Globe + flame mark, brand colours -->
+    <svg class="mark" viewBox="0 0 120 132" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#FFC300"/>
+          <stop offset="0.5" stop-color="#D4AF37"/>
+          <stop offset="1" stop-color="#b8902a"/>
+        </linearGradient>
+      </defs>
+      <!-- globe ring -->
+      <circle cx="60" cy="52" r="46" stroke="url(#goldGrad)" stroke-width="9"/>
+      <!-- stand -->
+      <rect x="55" y="98" width="10" height="16" fill="url(#goldGrad)"/>
+      <path d="M40 120 Q60 110 80 120 L80 126 Q60 118 40 126 Z" fill="url(#goldGrad)"/>
+      <!-- flame -->
+      <g class="flame-inner">
+        <path d="M60 22 C50 36 44 44 44 58 C44 72 52 80 60 80 C68 80 76 72 76 58 C76 50 70 44 66 38 C64 46 60 48 60 48 C60 48 66 34 60 22 Z" fill="#FF1313"/>
+        <path d="M60 40 C55 48 52 53 52 60 C52 68 56 72 60 72 C64 72 68 68 68 60 C68 54 64 50 62 46 C61 51 60 52 60 52 C60 52 62 46 60 40 Z" fill="#ff5a3c"/>
+      </g>
+    </svg>
+
+    <div>
+      <p class="eyebrow">The Enlightenment Church</p>
+      <h1>Meeting Check-in<span class="meeting" id="meetingLabel">Loading…</span></h1>
+    </div>
+
+    <p class="status" id="status">Verifying the meeting link…</p>
+
+    <!-- Telegram Login Widget mounts here once we know the bot username -->
+    <div class="telegram-login" id="tgLogin"></div>
+
+    <!-- Primary tap target (revealed after login) -->
+    <button class="action" id="actionBtn" style="display:none">Check In</button>
+
+    <div class="banner" id="banner"></div>
+
+    <p class="hint" id="hint">
+      Not registered yet? Open the bot and send <strong>/register</strong> first.
+    </p>
+
+    <footer>Powered by TEC Attendance</footer>
+  </main>
+
+  <script>
+    const qs = new URLSearchParams(location.search);
+    const SESSION_CODE = qs.get("session"); // e.g. MTG-001
+
+    const els = {
+      meeting: document.getElementById("meetingLabel"),
+      status: document.getElementById("status"),
+      tgLogin: document.getElementById("tgLogin"),
+      action: document.getElementById("actionBtn"),
+      banner: document.getElementById("banner"),
+      hint: document.getElementById("hint"),
+    };
+
+    let authData = null; // Telegram login payload, set by the widget callback
+
+    function showBanner(kind, html) {
+      els.banner.className = "banner show " + kind;
+      els.banner.innerHTML = html;
+    }
+
+    // Telegram calls this global after a successful login.
+    window.onTelegramAuth = function (user) {
+      authData = user;
+      els.tgLogin.style.display = "none";
+      const name = user.first_name || "leader";
+      els.status.innerHTML = `Signed in as <strong>${name}</strong>. Tap below to record your attendance.`;
+      els.action.style.display = "block";
+    };
+
+    function mountLoginWidget(botUsername) {
+      const s = document.createElement("script");
+      s.async = true;
+      s.src = "https://telegram.org/js/telegram-widget.js?22";
+      s.setAttribute("data-telegram-login", botUsername);
+      s.setAttribute("data-size", "large");
+      s.setAttribute("data-radius", "12");
+      s.setAttribute("data-onauth", "onTelegramAuth(user)");
+      s.setAttribute("data-request-access", "write");
+      els.tgLogin.appendChild(s);
+    }
+
+    async function init() {
+      els.meeting.textContent = SESSION_CODE || "—";
+
+      if (!SESSION_CODE) {
+        els.status.textContent = "This link is missing its meeting code. Use the link posted in the group.";
+        return;
+      }
+
+      // Fetch the bot username (public) and mount the login widget.
+      try {
+        const cfg = await fetch("/api/config").then((r) => r.json());
+        mountLoginWidget(cfg.bot_username);
+        els.status.innerHTML =
+          `Meeting <strong>${SESSION_CODE}</strong> is open. Log in with Telegram to check in.`;
+      } catch (e) {
+        els.status.textContent = "Could not load the check-in page. Please refresh.";
+      }
+    }
+
+    async function submit() {
+      if (!authData) {
+        showBanner("err", "Please log in with Telegram first.");
+        return;
+      }
+      els.action.disabled = true;
+      const original = els.action.textContent;
+      els.action.innerHTML = '<span class="spinner"></span>Recording…';
+
+      try {
+        const res = await fetch("/api/checkin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_code: SESSION_CODE, auth: authData }),
+        }).then((r) => r.json());
+
+        if (res.action === "checkin") {
+          showBanner("in", `🔥 <strong>${res.message}</strong>`);
+          els.action.textContent = "Check Out";
+          els.action.classList.add("checkout");
+          els.hint.style.display = "none";
+        } else if (res.action === "checkout") {
+          showBanner("out", `${res.message}`);
+          els.action.textContent = "Check In";
+          els.action.classList.remove("checkout");
+        } else {
+          showBanner("err", res.message || "Something went wrong.");
+          els.action.textContent = original;
+        }
+      } catch (e) {
+        showBanner("err", "Network error. Please try again.");
+        els.action.textContent = original;
+      } finally {
+        els.action.disabled = false;
+      }
+    }
+
+    els.action.addEventListener("click", submit);
+    init();
+  </script>
+</body>
+</html>
