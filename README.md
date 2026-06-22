@@ -77,3 +77,4 @@ For a manual test, insert one row into `sessions` with `is_active = true`.)
   people tapping at once can't create duplicate or half-written blocks.
 - **Google Meet:** the same link works regardless of platform. Workflow 2 sets
   the `platform` column when the session is created; this page doesn't care.
+
