@@ -1,53 +1,34 @@
 // ============================================================
-// /api/checkin  — Vercel serverless function
+// /api/checkin  — Vercel serverless function  (signed-link auth)
 // ------------------------------------------------------------
-// 1. Receives the Telegram Login Widget payload from the browser.
-// 2. Verifies the payload's hash against the bot token (server-side).
-//    This is what stops anyone forging a check-in for someone else.
-// 3. Calls the Supabase `toggle_attendance` RPC (anon key + the one
-//    granted function — nothing else in the DB is reachable).
+// Identity comes from a SIGNED personal link the bot DMs each leader:
+//   https://app/?session=MTG-001&id=7077574332&sig=<hmac>
+//
+// The sig = HMAC-SHA256("session:id", BOT_TOKEN), first 32 hex chars.
+// We recompute it here and compare. A leader cannot change `id` to
+// someone else's without knowing the bot secret, so the link can't be
+// forged or edited. (A leader could forward their OWN link — accepted
+// tradeoff for a trusted leadership group.)
+//
+// Then we call the atomic Supabase `toggle_attendance` RPC.
 // ============================================================
 
 import crypto from "node:crypto";
 
-// --- Environment variables (set these in Vercel project settings) ---
-//   TELEGRAM_BOT_TOKEN  -> from BotFather
-//   SUPABASE_URL        -> https://ysntabwrbmsafuakkpjy.supabase.co
-//   SUPABASE_ANON_KEY   -> the public anon key (NOT the service key)
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 
-// Telegram login payloads older than this are rejected (replay protection).
-const MAX_AUTH_AGE_SECONDS = 86400; // 24h
+export function signCheckin(sessionCode, telegramId, botToken) {
+  const msg = `${sessionCode}:${telegramId}`;
+  return crypto.createHmac("sha256", botToken).update(msg).digest("hex").slice(0, 32);
+}
 
-function verifyTelegramAuth(data, botToken) {
-  // Telegram signs the login payload with a key derived from the bot token.
-  // We rebuild the data-check-string from every field except `hash`,
-  // sorted alphabetically, joined by newlines, then HMAC-SHA256 it.
-  const { hash, ...fields } = data;
-  if (!hash) return { ok: false, reason: "Missing hash." };
-
-  const checkString = Object.keys(fields)
-    .sort()
-    .map((k) => `${k}=${fields[k]}`)
-    .join("\n");
-
-  const secretKey = crypto.createHash("sha256").update(botToken).digest();
-  const hmac = crypto
-    .createHmac("sha256", secretKey)
-    .update(checkString)
-    .digest("hex");
-
-  if (hmac !== hash) return { ok: false, reason: "Signature check failed." };
-
-  const authDate = Number(fields.auth_date || 0);
-  const ageSeconds = Math.floor(Date.now() / 1000) - authDate;
-  if (ageSeconds > MAX_AUTH_AGE_SECONDS) {
-    return { ok: false, reason: "Login expired. Please tap Login again." };
-  }
-
-  return { ok: true, telegramId: Number(fields.id) };
+function timingSafeEqual(a, b) {
+  const ba = Buffer.from(String(a));
+  const bb = Buffer.from(String(b));
+  if (ba.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ba, bb);
 }
 
 export default async function handler(req, res) {
@@ -56,35 +37,29 @@ export default async function handler(req, res) {
     return;
   }
   if (!BOT_TOKEN || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    res.status(500).json({
-      action: "error",
-      message: "Server is not configured. (Missing environment variables.)",
-    });
+    res.status(500).json({ action: "error", message: "Server is not configured. (Missing environment variables.)" });
     return;
   }
 
   try {
-    const body =
-      typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
-    const { session_code, auth } = body;
+    const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
+    const { session_code, id, sig } = body;
 
     if (!session_code) {
       res.status(400).json({ action: "error", message: "No meeting code in the link." });
       return;
     }
-    if (!auth || !auth.id) {
-      res.status(400).json({ action: "error", message: "Please log in with Telegram first." });
+    if (!id || !sig) {
+      res.status(400).json({ action: "error", message: "This link is missing its security code. Please use the personal link the bot sent you." });
       return;
     }
 
-    // 1) Verify the Telegram login signature.
-    const v = verifyTelegramAuth(auth, BOT_TOKEN);
-    if (!v.ok) {
-      res.status(401).json({ action: "error", message: v.reason });
+    const expected = signCheckin(session_code, id, BOT_TOKEN);
+    if (!timingSafeEqual(expected, sig)) {
+      res.status(401).json({ action: "error", message: "This link is invalid or has been altered. Please use the personal link the bot sent you." });
       return;
     }
 
-    // 2) Call the atomic RPC. The DB decides check-in vs check-out.
     const rpcRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/toggle_attendance`, {
       method: "POST",
       headers: {
@@ -92,29 +67,18 @@ export default async function handler(req, res) {
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        p_session_code: session_code,
-        p_telegram_id: v.telegramId,
-      }),
+      body: JSON.stringify({ p_session_code: session_code, p_telegram_id: Number(id) }),
     });
 
     if (!rpcRes.ok) {
       const detail = await rpcRes.text();
-      res.status(502).json({
-        action: "error",
-        message: "Could not reach the attendance service. Please try again.",
-        detail,
-      });
+      res.status(502).json({ action: "error", message: "Could not reach the attendance service. Please try again.", detail });
       return;
     }
 
     const result = await rpcRes.json();
     res.status(200).json(result);
   } catch (err) {
-    res.status(500).json({
-      action: "error",
-      message: "Something went wrong. Please try again.",
-      detail: String(err),
-    });
+    res.status(500).json({ action: "error", message: "Something went wrong. Please try again.", detail: String(err) });
   }
 }
